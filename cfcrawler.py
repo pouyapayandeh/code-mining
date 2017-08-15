@@ -20,7 +20,7 @@ def api_call(method, parameters={}):
         return response.content.decode("utf-8")
     else:
         print(response.content)
-        logging.warning("API CALL TO %s with %s RETURNED STATUS CODE %s", method,parameters, response.status_code)
+        logging.error("API CALL TO %s with %s RETURNED STATUS CODE %s", method,parameters, response.status_code)
 
 def write_to_file(file,content):
     file = file.replace("../","").replace("/","-")
@@ -48,9 +48,17 @@ def request_loop():
     while not q.empty():
         logging.info("Queue Size = %s ",q.qsize())
         item = q.get(False)
-        item.do()
-        sleep(0.25)
-        q.task_done()
+        try:
+            item.do()
+            sleep(0.25)
+        except Exception as err:
+            logging.error("TASK %s , %s encounter Exception %s",item.method,item.params,err)
+            q.put(item)
+            logging.warning("Putting Task Back To Queue")
+        finally:
+            q.task_done()
+
+
 def main():
     setup_logger()
 
@@ -110,7 +118,7 @@ if __name__ == "__main__":
         t = Task(args.method , params)
         t.do()
     elif args.range:
-        logging.info("Starting Range Crawl")
+        logging.info("Starting Range Crawler")
         for x in range(args.start, args.finish):
             t = Task ('contest.status',{'contestId':x,'from':1,'count':COUNT_SIZE},increment_page)
             q.put(t)
