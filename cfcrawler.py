@@ -6,10 +6,14 @@ import queue
 import urllib.parse
 from time import sleep
 
+from datetime import datetime
+
+import pickle
 import requests
 
 API_BASE = "http://codeforces.com/api/"
 COUNT_SIZE = 100
+DUMP_THR = 10
 def setup_logger():
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',
                         level=logging.INFO)
@@ -43,9 +47,20 @@ class Task:
         if self.callback != None:
             self.callback(self,content)
 
+def dump_queue():
+    pickle.dump(q.queue, open('queue-dump.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
+def load_queue():
+    x = pickle.load(open('queue-dump.pickle', 'rb'))
+    q.queue = x
 def request_loop():
+    k = 0
     while not q.empty():
+        k+=1
+        if k > DUMP_THR:
+            logging.info("Dumping Queue")
+            k=0
+            dump_queue()
         logging.info("Queue Size = %s ",q.qsize())
         item = q.get(False)
         try:
@@ -55,9 +70,6 @@ def request_loop():
             logging.error("TASK %s , %s encounter Exception %s",item.method,item.params,err)
             q.put(item)
             logging.warning("Putting Task Back To Queue")
-        finally:
-            q.task_done()
-
 
 def main():
     setup_logger()
@@ -81,11 +93,11 @@ def increment_page(t:Task,content):
     tt = copy.copy(t)
     tt.param['from'] +=COUNT_SIZE
     result = json.loads(content)
-    # if len(result['result']) != 0:
-    #     q.put(tt)
     for  x in result['result']:
         tp = Task("../contest/%s/submission/%s"%(x['contestId'],x['id']),{})
         q.put(tp)
+    if len(result['result']) != 0:
+        q.put(tt)
 
 
 
@@ -107,6 +119,9 @@ if __name__ == "__main__":
     parser.add_argument('-r', dest='range',action='store_const',const=True,
                         default=False,
                         help='A single api call and saving result')
+    parser.add_argument('--resume', dest='resume',action='store_const',const=True,
+                        default=False,
+                        help='resume crawler from queue-dump.pickle')
     parser.add_argument('--start', metavar='Start Id', type=int,
                         help='Starting Contest Id')
     parser.add_argument('--finish', metavar='Finish Id', type=int,
@@ -122,6 +137,10 @@ if __name__ == "__main__":
         for x in range(args.start, args.finish):
             t = Task ('contest.status',{'contestId':x,'from':1,'count':COUNT_SIZE},increment_page)
             q.put(t)
+        request_loop()
+    elif args.resume:
+        logging.info("Resuming Crawler")
+        load_queue()
         request_loop()
     logging.info("Exisitng")
 
