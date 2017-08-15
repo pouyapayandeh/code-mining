@@ -26,8 +26,9 @@ def api_call(method, parameters={}):
     if response.status_code == 200:
         return response.content.decode("utf-8")
     else:
-        print(response.content)
         logging.error("API CALL TO %s with %s RETURNED STATUS CODE %s", method,parameters, response.status_code)
+        logging.error("Content= %s",response.content)
+        return None
 
 
 def write_to_file(file,content):
@@ -46,10 +47,11 @@ class Task:
     def do(self):
         logging.info("Started Task %s with %s", self.method, self.param)
         content = api_call(self.method,self.param)
-        param_encoded =urllib.parse.urlencode(self.param)
-        write_to_file(self.method+'-'+param_encoded,content)
-        if self.callback != None:
-            self.callback(self,content)
+        if content != None:
+            param_encoded =urllib.parse.urlencode(self.param)
+            write_to_file(self.method+'-'+param_encoded,content)
+            if self.callback != None:
+                self.callback(self,content)
 
 
 def dump_queue():
@@ -75,7 +77,7 @@ def request_loop():
             item.do()
             sleep(0.25)
         except Exception as err:
-            logging.error("TASK %s , %s encounter Exception %s",item.method,item.params,err)
+            logging.error("TASK %s , %s encounter Exception %s",item.method,item.param,err)
             q.put(item)
             logging.warning("Putting Task Back To Queue")
 
