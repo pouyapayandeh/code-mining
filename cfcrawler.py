@@ -14,9 +14,12 @@ import requests
 API_BASE = "http://codeforces.com/api/"
 COUNT_SIZE = 100
 DUMP_THR = 10
+q = queue.Queue()
+
 def setup_logger():
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',
                         level=logging.INFO)
+
 
 def api_call(method, parameters={}):
     response = requests.get(API_BASE+method, params=parameters)
@@ -26,13 +29,14 @@ def api_call(method, parameters={}):
         print(response.content)
         logging.error("API CALL TO %s with %s RETURNED STATUS CODE %s", method,parameters, response.status_code)
 
+
 def write_to_file(file,content):
     file = file.replace("../","").replace("/","-")
     with open(file,'w',encoding="utf-8") as f:
         f.write(content)
         f.close()
 
-q = queue.Queue()
+
 class Task:
     def __init__(self,method,param , callback = None):
         self.method = method
@@ -43,16 +47,20 @@ class Task:
         logging.info("Started Task %s with %s", self.method, self.param)
         content = api_call(self.method,self.param)
         param_encoded =urllib.parse.urlencode(self.param)
-        write_to_file(self.method+param_encoded,content)
+        write_to_file(self.method+'-'+param_encoded,content)
         if self.callback != None:
             self.callback(self,content)
+
 
 def dump_queue():
     pickle.dump(q.queue, open('queue-dump.pickle', 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
+
 def load_queue():
     x = pickle.load(open('queue-dump.pickle', 'rb'))
     q.queue = x
+
+
 def request_loop():
     k = 0
     while not q.empty():
@@ -70,13 +78,6 @@ def request_loop():
             logging.error("TASK %s , %s encounter Exception %s",item.method,item.params,err)
             q.put(item)
             logging.warning("Putting Task Back To Queue")
-
-def main():
-    setup_logger()
-
-    q.put(Task("contest.list",{}))
-    request_loop()
-
 
 
 def list_to_param(list):
@@ -98,7 +99,6 @@ def increment_page(t:Task,content):
         q.put(tp)
     if len(result['result']) != 0:
         q.put(tt)
-
 
 
 if __name__ == "__main__":
