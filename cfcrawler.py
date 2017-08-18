@@ -22,7 +22,7 @@ def setup_logger():
 
 
 def api_call(method, parameters={}):
-    response = requests.get(API_BASE+method, params=parameters)
+    response = requests.get(API_BASE+method, params=parameters,timeout=5)
     if response.status_code == 200:
         return response.content.decode("utf-8")
     else:
